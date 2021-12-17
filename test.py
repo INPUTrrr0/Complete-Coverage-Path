@@ -25,6 +25,7 @@ import copy
 from collections import defaultdict
 # import itertools
 import os
+import networkx as nx
 from shapely.geometry import *
 
 #print(os.path.dirname(os.path.abspath(__file__)))
@@ -33,22 +34,15 @@ from shapely.geometry import *
 print("here")
 TotalEdges = dict()
 BorderSet = set()
+Graph = nx.MultiGraph()
+radius=1
 
 border = Polygon(((0, 3), (0, 7), (1, 7), (1, 8), (0, 8), (0, 14), (3, 14), (3, 11), (4, 11), (4, 14), (7, 14), (7, 8),
                   (4, 8), (4, 10), (3, 10), (3, 8), (2, 8), (2, 7), (3, 7), (3, 5), (5, 5), (5, 3), (6, 3), (6, 0),
                   (3, 0), (3, 3), (4, 3), (4, 4), (2, 4), (2, 3)))
 
-borderbuffered = border.buffer(-1)
+borderbuffered = border.buffer(-radius)
 
-
-borderFOUR = Polygon(((0, 3), (0, 7), (1, 7), (1, 8), (0, 8), (0, 14), (3, 14), (3, 11), (4, 11), (4, 14), (7, 14),
-                      (7, 8), (4, 8), (4, 10), (3, 10), (3, 8), (2, 8), (2, 7), (3, 7), (3, 5), (5, 5), (5, 3), (6, 3),
-                      (6, 0), (3, 0), (3, 3), (4, 3), (4, 4), (2, 4), (2, 3)))
-borderFOURbuffered = borderFOUR.buffer(-1)
-
-# coord1 = copy.deepcopy(rdp(borderbuffered[0].exterior.coords[:],epsilon=0.5))
-# coord2 = copy.deepcopy(rdp(borderbuffered[1].exterior.coords[:],epsilon=0.5))
-coord3 = copy.deepcopy(borderFOUR.exterior.coords[:])
 
 def graphnumberedmap():
     plt.figure(figsize=(3.5, 6), dpi=100)
@@ -79,6 +73,66 @@ def graphnumberedmap():
         x += 1
 
     plt.show()
+
+def findbisector(before):
+    r=[]
+    if True:
+        for i in range(1,len(before)-1):
+            u=[a-b for (a, b) in zip(before[i],before[i - 1])]
+            v=[a-b for (a, b) in zip(before[i],before[i + 1] )] 
+            Mu = LA.norm(u)
+            Mv = LA.norm(v)
+            u = [number / Mu for number in u]
+            v = [number / Mv for number in v]
+            b= [a+b for (a, b) in zip(u,v)]
+            #b=[i.tolist() for i in b]
+            new = [x+radius*y for (x, y) in zip(before[i],b)]
+            newP=Point(new)
+
+            inout = border.contains(newP)
+            if (inout):
+                r.append(b)
+    return r
+        
+
+b=findbisector(borderbuffered[0].exterior.coords[:-1])
+
+a=BufferedPolygon(kind="visible Polygon",
+                    item=borderbuffered[0].exterior.coords[:-1],
+                    epsilon=0.3, radius=radius, border=border)
+
+bis = a.findbisector()
+print(bis)
+
+
+
+plt.figure(figsize=(3.5, 6), dpi=100)
+coord1 = copy.deepcopy(border.exterior.coords[:])
+xBottom, yBottom = zip(*coord1)
+plt.gca().plot(xBottom, yBottom, color="black", linewidth=1.0)
+# plt.title("after cleaning")
+
+for i in borderbuffered[2:3]:
+    a=BufferedPolygon(kind="visible Polygon",
+                    item=i.exterior.coords[:-1],
+                    epsilon=0.1, radius=radius, border=border)
+    xBottom, yBottom = zip(*a.clean)
+    plt.gca().plot(xBottom, yBottom, color="black", linestyle='--', linewidth=1.0)  # marker=''
+    coordX = a.reflexPoints
+    for r in coordX:
+        plt.plot(r[0],r[1],'ro') 
+    coordY,coordZ = a.findbisector()
+    for r in coordY:
+        plt.plot(r[0],r[1],'gv') 
+    for r in coordZ:
+        plt.plot(r[0],r[1],'bv') 
+   
+
+
+plt.show()
+
+
+sys.exit
 
 
 
@@ -120,8 +174,6 @@ visited = []
 
 
 
-
-
 BorderReflexPoints = []
 for i in range(len(borderCoord)):
     TotalEdges[borderCoord[i]] = set()
@@ -129,15 +181,18 @@ for i in range(len(borderCoord)):
         BorderReflexPoints.append(borderCoord[i])
 
 for i in range(len(borderbuffered)):
-    BufferedPolygon(kind="visible Polygon",
+    Graph.add_node(BufferedPolygon(kind="visible Polygon",
                     item=borderbuffered[i].exterior.coords[:-1],
                     epsilon=0.5,
-                    parent=visiblePolygon)
+                    parent=visiblePolygon))
 
 #for i in BorderReflexPoints:
   #  for j in BorderReflexPoints:
        # if i!=j:
             #if not (crossBorder(borderCoord,i, j)):
+
+
+
 
 
 def visit(startPolygon: BufferedPolygon):
@@ -224,7 +279,7 @@ def graphinnermap():
 def graphbitangentmap():
     plt.figure(figsize=(3.5, 6), dpi=200)
 
-    coord3 = copy.deepcopy(borderFOUR.exterior.coords[:])
+    coord3 = copy.deepcopy(border.exterior.coords[:])
     xBorder, yBorder = zip(*coord3)
     plt.gca().plot(xBorder, yBorder,color='black',linewidth=1.0)
 
@@ -251,7 +306,7 @@ def graphbitangentmap():
     plt.show() 
 
 
-
+#graphinnermap()
 
 '''
 for polygons in visiblePolygon:

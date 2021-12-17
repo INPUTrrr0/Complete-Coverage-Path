@@ -21,6 +21,8 @@ from rdp import rdp
 import math
 import numpy.linalg as LA
 import copy
+from numpy import linalg as LA
+import networkx as nx
 from collections import defaultdict
 # import itertools
 import os
@@ -142,7 +144,7 @@ def pathDist(path=[]):
             # print (path[i],path[i+1],dist)
     return dist
 
-
+#class Vertex:
 
 class Edge:
     def __init__(self, polygonStart, polygonDest, path=[]):
@@ -199,12 +201,14 @@ class Edge:
 # container for buffered polygon storing all the information needed
 class BufferedPolygon:
 
-    def __init__(self, kind="", item=[(0, 1), (1, 1), (1, 0)], epsilon=0, parent=[]):
+    def __init__(self, kind="", item=[(0, 1), (1, 1), (1, 0)], epsilon=0, radius=1, border=Polygon([(1,1),(0,0),(1,0)]),parent=[]):
         self.raw = item
         self.clean = rdp(item, epsilon=epsilon)
         self.reflexPoints = self.findreflex(self.clean)
         self.name = kind
         self.parent = parent
+        self.radius=radius
+        self.border=border
         parent.append(self)
         self.ID = Polygon(item).representative_point().coords[:]
         self.edge = []
@@ -223,13 +227,41 @@ class BufferedPolygon:
     def add(self, reflex):
         self.reflexPoints.append(reflex)
 
+    def findbisector(self):
+        before=self.clean 
+        radius=self.radius
+        border=self.border
+        r = []
+        r1=[]
+        for i in range(len(before)):
+            prev=before[i - 1]
+            cur=before[i]
+            next=before[((i + 1) % (len(before)))]
+            if isConvex(prev, cur, next):
+                u=[a-b for (a, b) in zip(cur,prev)]
+                v=[a-b for (a, b) in zip(cur, next )] 
+                Mu = LA.norm(u)
+                Mv = LA.norm(v)
+                u = [number / Mu for number in u]
+                v = [number / Mv for number in v]
+                b= [a+b for (a, b) in zip(u,v)]
+                #b=[i.tolist() for i in b]
+                new = [x+radius*1.01*y for (x, y) in zip(cur,b)]
+                newP=Point(new)
+
+                inout = border.contains(newP)
+                if (inout):
+                    r.append(cur)
+                    r1.append(new)
+        return r,r1
+
+
     def findreflex(self, before):
         reflexPoints = []
         for i in range(len(before)):
             if isConvex(before[i - 1], before[i], before[((i + 1) % (len(before)))]):
-                reflexPoints.append(
-                    before[i])  # this "self" thing.. I want java when you can just refer to variables by their name :(
-        return reflexPoints  # 啊我写python真的就是连猜带蒙啊。。
+                reflexPoints.append(before[i]) 
+        return reflexPoints  
 
     def __repr__(self):
         return "{} at {} \n".format(self.name, self.ID) + os.linesep
