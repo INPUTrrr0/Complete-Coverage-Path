@@ -94,8 +94,9 @@ def findbisector(before):
                 r.append(b)
     return r
         
-
+'''
 b=findbisector(borderbuffered[0].exterior.coords[:-1])
+
 
 a=BufferedPolygon(kind="visible Polygon",
                     item=borderbuffered[0].exterior.coords[:-1],
@@ -103,7 +104,7 @@ a=BufferedPolygon(kind="visible Polygon",
 
 bis = a.findbisector()
 print(bis)
-
+'''
 
 
 plt.figure(figsize=(3.5, 6), dpi=100)
@@ -112,7 +113,7 @@ xBottom, yBottom = zip(*coord1)
 plt.gca().plot(xBottom, yBottom, color="black", linewidth=1.0)
 # plt.title("after cleaning")
 
-for i in borderbuffered[2:3]:
+for i in borderbuffered[:]:
     a=BufferedPolygon(kind="visible Polygon",
                     item=i.exterior.coords[:-1],
                     epsilon=0.1, radius=radius, border=border)
@@ -132,7 +133,7 @@ for i in borderbuffered[2:3]:
 plt.show()
 
 
-sys.exit
+sys.exit()
 
 
 
