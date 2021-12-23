@@ -1,8 +1,12 @@
+import enum
 import sys
 
 #from shapely.geometry import Point, Polygon,LineString
 import matplotlib.pyplot as plt
 import itertools
+from networkx.convert_matrix import _generate_weighted_edges
+
+from networkx.generators.line import line_graph
 from utl import *
 # from shapely.geometry import LineString,mapping,shape,MultiLineString,MultiPolygon,Polygon,MultiPoint,LinearRing
 # import json
@@ -26,12 +30,13 @@ from collections import defaultdict
 # import itertools
 import os
 import networkx as nx
+from networkx.classes.function import path_weight
 from shapely.geometry import *
 
 #print(os.path.dirname(os.path.abspath(__file__)))
 #sys.exit()
 
-print("here")
+
 TotalEdges = dict()
 BorderSet = set()
 Graph = nx.MultiGraph()
@@ -43,6 +48,13 @@ border = Polygon(((0, 3), (0, 7), (1, 7), (1, 8), (0, 8), (0, 14), (3, 14), (3, 
 
 borderbuffered = border.buffer(-radius)
 
+'''
+a=[1,2]
+b=[0,0]
+l=LineString([tuple(a),tuple(b)])
+
+sys.exit()
+'''
 
 def graphnumberedmap():
     plt.figure(figsize=(3.5, 6), dpi=100)
@@ -93,46 +105,173 @@ def findbisector(before):
             if (inout):
                 r.append(b)
     return r
-        
+
+
+def validPoints():
+    plt.figure(figsize=(3.5, 6), dpi=100)
+    coord1 = copy.deepcopy(border.exterior.coords[:])
+    xBottom, yBottom = zip(*coord1)
+    plt.gca().plot(xBottom, yBottom, color="black", linewidth=1.0)
+    # plt.title("after cleaning")
+
+    for i in borderbuffered[:]:
+        a=BufferedPolygon(kind="visible Polygon",
+                        item=i.exterior.coords[:-1],
+                        epsilon=0.1, radius=radius, border=border)
+        xBottom, yBottom = zip(*a.clean)
+        plt.gca().plot(xBottom, yBottom, color="black", linestyle='--', linewidth=1.0)  # marker=''
+        coordX = a.reflexPoints
+        coordY,_ = a.findbisector()
+        for r in coordY:
+            plt.plot(r[0],r[1],'kv',markersize=10) 
+        s1=[]
+        s2=[]
+        points=set()
+        bitangent(borderCoord=coord1[:-1],border=border,store1=s1,store2=s2,points=points)
+        for p in points:
+            plt.plot(p[0],p[1],'k.',markersize=10) 
+
+   # plt.show()
+
 '''
-b=findbisector(borderbuffered[0].exterior.coords[:-1])
+G=nx.MultiGraph()
+#G.add_edge(1,0,weight=10)
+G.add_edge(2,1,weight=12)
+G.add_edge(1,0,weight=10)
+G.add_edge(3,0,weight=3)
+m = nx.to_numpy_matrix(G)
 
-
-a=BufferedPolygon(kind="visible Polygon",
-                    item=borderbuffered[0].exterior.coords[:-1],
-                    epsilon=0.3, radius=radius, border=border)
-
-bis = a.findbisector()
-print(bis)
+print(m)
+print(path_weight(G, [2,1,0],weight="weight"))
+sys.exit()
 '''
 
-
-plt.figure(figsize=(3.5, 6), dpi=100)
-coord1 = copy.deepcopy(border.exterior.coords[:])
-xBottom, yBottom = zip(*coord1)
-plt.gca().plot(xBottom, yBottom, color="black", linewidth=1.0)
-# plt.title("after cleaning")
+G = nx.DiGraph()
+vertices=[]
+bufferpolygons = []
+index=0
 
 for i in borderbuffered[:]:
     a=BufferedPolygon(kind="visible Polygon",
-                    item=i.exterior.coords[:-1],
-                    epsilon=0.1, radius=radius, border=border)
+                        item=i.exterior.coords[:-1],
+                        epsilon=0.1, radius=radius, border=border)
     xBottom, yBottom = zip(*a.clean)
-    plt.gca().plot(xBottom, yBottom, color="black", linestyle='--', linewidth=1.0)  # marker=''
-    coordX = a.reflexPoints
-    for r in coordX:
-        plt.plot(r[0],r[1],'ro') 
-    coordY,coordZ = a.findbisector()
-    for r in coordY:
-        plt.plot(r[0],r[1],'gv') 
-    for r in coordZ:
-        plt.plot(r[0],r[1],'bv') 
-   
+    bufferpolygons.append(a)
+    coordY,_ = a.findbisector()
+    a.addoutpoints(coordY)
+
+    for i,coord in enumerate(coordY):
+        vertices.append(Node(a,coord,index+i,"polygon"))
+
+    length=len(coordY)
+    a.addrange([index,index+length])
+    index=index+length
+
+points=set()
+bitangent(borderCoord=copy.deepcopy(border.exterior.coords[:-1]),border=border,points=points)
+for i,coord in enumerate(points):
+    vertices.append(Node(a,coord,index+i,"border"))
 
 
-plt.show()
+
+adjmatrix = [ [0]*len(vertices) for i in range(len(vertices))]
+for i, rowele in enumerate(vertices):
+    #print(f"{i}: ({round(rowele.location[0],2)}, {round(rowele.location[1],2)})")
+    #plt.text(rowele.location[0], rowele.location[1]+0.2, f'{i}',fontsize=15,fontname="Times New Roman")
+
+    for j, columnele in enumerate(vertices):
+        if (i==j):
+            continue
+
+        l=LineString([tuple(rowele.location),tuple(columnele.location)])
+ 
+        if l.within(border):
+            adjmatrix[i][j]=l.length
+
+#print('\n'.join([' '.join(['{:0.2f}'.format(item) for item in row]) 
+     # for row in adjmatrix]))
+
+#plt.show()
+
+G = nx.DiGraph(np.array(adjmatrix))
+#compressed path
+g1 = nx.DiGraph()
+gtest=nx.DiGraph()
+gtest.add_node(0)
+for i in range(index):
+    for j in range(index):
+        if (i==j):
+            continue
+        weight,path = nx.bidirectional_dijkstra(G,i,j)
+      #  g1.add_node(1)
+      #  g1.add_node(2)
+      #  print(g1.nodes)
+        g1.add_edge(i,j,path=path,weight=weight)
+        gtest.add_edge(0,i+1,path=[0,i+1],weight=0)
+        gtest.add_edge(i+1,j+1,path=path,weight=weight)
+
+#print(path_weight(gtest,[0,3,2],weight="weight"))
+g1.add_edge(6,2,weight=0)
+g1.add_edge(5,6,weight=0)
+tsp = nx.approximation.traveling_salesman_problem
+path = tsp(g1)
+print(path)
 
 
+sys.exit()
+tsp = nx.approximation.traveling_salesman_problem
+path = tsp(gtest)
+print(path)
+sys.exit()
+
+
+
+
+g1.add_node(6)
+g1.add_edge(6,0,weight=0)
+g1.add_edge(6,1,weight=0)
+g1.add_edge(6,2,weight=0)
+g1.add_edge(6,3,weight=0)
+g1.add_edge(6,4,weight=0)
+g1.add_edge(6,5,weight=0)
+tsp = nx.approximation.traveling_salesman_problem
+path = tsp(g1)
+print(printfullpath(g1,path))
+sys.exit()
+'''
+g1.add_edge(6,0,weight=0)
+weight,path = nx.bidirectional_dijkstra(g1,6,0) #0,6 dont exist
+print(g1.get_edge_data(*path,"path")['path'])
+SA_tsp = nx.approximation.greedy_tsp(g1, source=)
+#method = lambda g1, wt: SA_tsp(g1, "greedy", weight=wt, temp=500)
+#tsp = nx.approximation.traveling_salesman_problem
+tsp(g1, nodes=range(index))
+path = tsp(g1, method=method)
+print(path)
+p=g1.get_edge_data(*path,"path")['path']
+print(path_weight(g1, path,weight="weight"))
+pweight= path_weight(g1, [2,1,0,3,4,5],weight="weight")
+'''
+
+
+def partialpath(g1):
+    shortestpath=[]
+    weight = float('inf') 
+    adjtemp = nx.to_numpy_matrix(g1)
+    for _,ele in enumerate(bufferpolygons):
+        for i in range(*ele.range):
+            for j in [x for x in range(index) if x not in range(*ele.range)]:
+                gtemp=nx.DiGraph(adjtemp)
+                gtemp.add_edge(j,i,weight=0) #from dest to start, weight=0
+                path = nx.approximation.greedy_tsp(gtemp, source=i)
+                pweight= path_weight(gtemp, path,weight="weight")
+                if pweight<weight:
+                    weight=pweight
+                    shortestpath=path
+    return printfullpath(g1,shortestpath[:-1]),weight
+
+path,weight = partialpath(g1)
+print(path,weight)
 sys.exit()
 
 
