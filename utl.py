@@ -29,6 +29,13 @@ import os
 from shapely.geometry import *
 
 
+def printfullpath(g1,path):
+    fullpath=[]
+    fullpath.extend(g1.get_edge_data(*path[:2],"path")['path'])
+    for i in range(1,len(path)-1):
+        fullpath.extend(g1.get_edge_data(*[path[i],path[i+1]],"path")['path'][1:])
+
+    return fullpath
 
 def reduce(poly:Polygon,epsilon,buffer=1,areamin=0,store=[]):
     coord = rdp(list(copy.deepcopy(poly.exterior.coords[:])), epsilon)
@@ -42,7 +49,7 @@ def reduce(poly:Polygon,epsilon,buffer=1,areamin=0,store=[]):
 
 
 
-def bitangent(borderCoord,border:Polygon,store1=[],store2=[]): #why use this for convex: avoid corner cases
+def bitangent(borderCoord,border:Polygon,store1=[],store2=[],points=set()): #why use this for convex: avoid corner cases
     line = LineString(border.exterior.coords[:])
     for (x, y) in itertools.combinations(borderCoord, 2):
         if not crossBorder(borderCoord,x, y) and not penetrateBorder(border,y, x) and not penetrateBorder(border,x, y):
@@ -50,11 +57,15 @@ def bitangent(borderCoord,border:Polygon,store1=[],store2=[]): #why use this for
                 coordX = [x, y]
                 #Px, Py = zip(*coordX) #zip is useful
                 store1.append(coordX)
+                points.add(x)
+                points.add(y)
             
             elif line.contains(Point(newcoord((x, y), -0.1))) and line.contains(
                 Point((x[0] + y[0]) / 2, (x[1] + y[1]) / 2)):
                 coordX = [x, y]
                 store2.append(coordX)
+                points.add(x)
+                points.add(y)
                 
     
 
@@ -145,6 +156,13 @@ def pathDist(path=[]):
     return dist
 
 #class Vertex:
+class Node:
+    def __init__(self, parentPoly,location,index,type):
+        self.parentPoly = parentPoly
+        self.location = location
+        self.index = index
+        self.type=type
+
 
 class Edge:
     def __init__(self, polygonStart, polygonDest, path=[]):
@@ -205,10 +223,12 @@ class BufferedPolygon:
         self.raw = item
         self.clean = rdp(item, epsilon=epsilon)
         self.reflexPoints = self.findreflex(self.clean)
+        self.outpoints = []
         self.name = kind
         self.parent = parent
         self.radius=radius
         self.border=border
+        self.range=[] #index of its child in the adj matrix
         parent.append(self)
         self.ID = Polygon(item).representative_point().coords[:]
         self.edge = []
@@ -224,8 +244,11 @@ class BufferedPolygon:
                     return False
             return True
 
-    def add(self, reflex):
-        self.reflexPoints.append(reflex)
+    def addoutpoints(self, out):
+        self.outpoints = out
+
+    def addrange(self,range):
+        self.range=range
 
     def findbisector(self):
         before=self.clean 
@@ -245,8 +268,13 @@ class BufferedPolygon:
                 u = [number / Mu for number in u]
                 v = [number / Mv for number in v]
                 b= [a+b for (a, b) in zip(u,v)]
+                unitb = b/LA.norm(b)
                 #b=[i.tolist() for i in b]
-                new = [x+radius*1.01*y for (x, y) in zip(cur,b)]
+                length = LA.norm([radius,radius])
+                new = [x+length*y for (x, y) in zip(cur,unitb)]
+
+                #print('the length from ',cur,' to ',new,' is: ',LA.norm([cur[0]-new[0],cur[1]-new[1]]))
+
                 newP=Point(new)
 
                 inout = border.contains(newP)
