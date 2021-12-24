@@ -20,7 +20,7 @@ import numpy as np
 # from shapely.ops import transform
 # from shapely.affinity import translate
 # import re
-# import textwrap
+# import textwrap 
 from rdp import rdp
 # import matplotlib.pyplot as plt
 import math
@@ -211,14 +211,16 @@ for i in range(index):
         gtest.add_edge(i+1,j+1,path=path,weight=weight)
 
 #print(path_weight(gtest,[0,3,2],weight="weight"))
-g1.add_edge(6,2,weight=0)
-g1.add_edge(5,6,weight=0)
-tsp = nx.approximation.traveling_salesman_problem
-path = tsp(g1)
+#g1.add_edge(6,2,weight=0)
+#g1.add_edge(5,6,weight=0)
+tsp = nx.approximation.greedy_tsp
+path = tsp(g1,source=2)
 print(path)
 
 
 sys.exit()
+
+
 tsp = nx.approximation.traveling_salesman_problem
 path = tsp(gtest)
 print(path)
