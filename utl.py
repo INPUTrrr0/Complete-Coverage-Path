@@ -37,14 +37,22 @@ def printfullpath(g1,path):
 
     return fullpath
 
-def reduce(poly:Polygon,epsilon,buffer=1,areamin=0,store=[]):
-    coord = rdp(list(copy.deepcopy(poly.exterior.coords[:])), epsilon)
-    if len(coord)>=2:
-        #print("area to graph",poly.area)
-        store.append(coord)
-        b2=poly.buffer(buffer)
-        if b2.area>=areamin:
-            reduce(b2,epsilon,buffer,areamin,store) 
+def reduce(poly:Polygon,epsilon,buffer=-1,areamin=0,store=[]):
+    if type(poly)==type(MultiPolygon()):
+        for i in poly:
+            reduce(i,epsilon,buffer,areamin,store) 
+    else: #just a normal polygon 
+        if (len(poly.interiors)>0):
+            for ring in poly.interiors:
+                store.append(rdp(ring.coords,epsilon))
+
+        coord = rdp(list(poly.exterior.coords[:]), epsilon)
+        if len(coord)>=2:
+            #print("area to graph",poly.area)
+            store.append(coord)
+            b2=poly.buffer(buffer)
+            if b2.area>=areamin:
+                reduce(b2,epsilon,buffer,areamin,store) 
     return
 
 
